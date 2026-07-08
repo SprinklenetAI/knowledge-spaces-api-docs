@@ -1,0 +1,12 @@
+# Never commit secrets or environment files
+.env
+.env.*
+*.pem
+*.key
+secrets/
+*.local
+
+# Node / build
+node_modules/
+dist/
+.DS_Store

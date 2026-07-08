@@ -1,0 +1,342 @@
+openapi: 3.0.0
+info:
+  title: Sprinklenet Knowledge Spaces Developer API
+  version: 1.0.0
+  description: Public API contract for developers building programmatic integrations on Knowledge Spaces.
+  contact:
+    name: Sprinklenet
+    email: hello@sprinklenet.com
+    url: https://sprinklenet.com/developers/
+servers:
+  - url: https://spaces.sprinklenet.com/api
+    description: Production
+security:
+  - ApiKeyAuth: []
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - session_id
+        - text
+      properties:
+        session_id:
+          type: string
+          example: quickstart-001
+        text:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          example: Hello Knowledge Spaces
+        context:
+          description: >-
+            Optional per-turn context. Accepts either a plain string or a JSON
+            object of arbitrary key/value pairs.
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: true
+        stream:
+          description: >-
+            When true, the reply is returned as Server-Sent Events instead of a
+            single JSON body. Accepts a boolean or the strings "true"/"false".
+          oneOf:
+            - type: boolean
+            - type: string
+              enum: ["true", "false"]
+          default: false
+    ChatResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        text:
+          oneOf:
+            - type: string
+            - type: object
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+    Session:
+      type: object
+      properties:
+        session_id:
+          type: string
+        chatbot_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_active_at:
+          type: string
+          format: date-time
+        message_count:
+          type: integer
+        end_user_id:
+          type: string
+          nullable: true
+        custom_context:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum:
+            - active
+            - ended
+paths:
+  /bots/{bot_id}/chat:
+    post:
+      summary: Send a message to a bot
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Bot response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "402":
+          description: Usage limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: API key lacks access to this bot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      summary: Get chat history for a session
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chat transcript
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        role:
+                          type: string
+                          enum: [user, assistant]
+                        text:
+                          type: string
+                        session_id:
+                          type: string
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /sessions/{session_id}:
+    get:
+      summary: Get session details
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Session"
+    delete:
+      summary: Delete a session
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session deleted
+  /sessions/{session_id}/context:
+    put:
+      summary: Update session context
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                custom_context:
+                  type: object
+                  additionalProperties: true
+                end_user_id:
+                  type: string
+      responses:
+        "200":
+          description: Session context updated
+  /sessions/{session_id}/end:
+    post:
+      summary: End a session
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session ended
+  /chatbots/{chatbot_id}/chat/stream:
+    post:
+      summary: Send a message and stream the reply (Server-Sent Events)
+      description: >-
+        Streaming variant of the chat endpoint. Always responds with
+        `text/event-stream`, emitting incremental `event:`/`data:` frames and
+        terminating with an `event: done` frame. On a mid-stream failure it
+        emits an `event: error` frame with `{ "message": "..." }`.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: chatbot_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Server-Sent Events stream of the assistant reply
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  event: token
+                  data: {"text":"Our refund"}
+
+                  event: done
+                  data: {}
+        "400":
+          description: Missing session_id or text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /rate-limit/info:
+    get:
+      summary: Get public rate-limit policy
+      security: []
+      responses:
+        "200":
+          description: Rate-limit policy metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      default_limits:
+                        type: object
+                        properties:
+                          requests_per_minute:
+                            type: integer
+                          requests_per_hour:
+                            type: integer
+                          requests_per_day:
+                            type: integer
+                      windows:
+                        type: object
+                        additionalProperties: true
+                      headers:
+                        type: object
+                        additionalProperties: true
+                      error_response:
+                        type: object
+                        additionalProperties: true
