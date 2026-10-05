@@ -1,23 +1,109 @@
-openapi: 3.0.0
+openapi: 3.0.3
 info:
   title: Sprinklenet Knowledge Spaces Developer API
-  version: 1.0.0
-  description: Public API contract for developers building programmatic integrations on Knowledge Spaces.
+  version: 1.1.0
+  description: >-
+    Public API contract for developers building programmatic integrations on
+    Knowledge Spaces. Every request authenticates with the Organization API
+    Key, sent as `X-API-Key` or as `Authorization: Bearer`. A key reaches only
+    the bots and sessions that its own organization owns.
   contact:
     name: Sprinklenet
-    email: hello@sprinklenet.com
-    url: https://sprinklenet.com/developers/
+    url: https://sprinklenet.com/contact/
 servers:
   - url: https://spaces.sprinklenet.com/api
     description: Production
 security:
   - ApiKeyAuth: []
+  - BearerApiKey: []
+tags:
+  - name: Chat
+    description: Send messages to a bot and read conversation history.
+  - name: Sessions
+    description: Inspect, annotate, end, and delete conversation sessions.
+  - name: Rate Limits
+    description: Read the published rate-limit policy.
 components:
   securitySchemes:
     ApiKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
+      description: Organization API Key (`ks_live_` followed by 64 hex characters).
+    BearerApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: ks_live_...
+      description: "The same Organization API Key, sent as `Authorization: Bearer ks_live_...`."
+  parameters:
+    BotId:
+      name: bot_id
+      in: path
+      required: true
+      description: Identifier of a bot owned by your organization. Copy it from the bot in the console.
+      schema:
+        type: string
+        example: YOUR_BOT_ID
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      description: The session identifier you used in chat calls.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+        example: 9f1c2d7e-3b4a-4c5d-8e6f-0a1b2c3d4e5f
+  headers:
+    RateLimitLimit:
+      description: Request quota for the current window.
+      schema:
+        type: integer
+    RateLimitRemaining:
+      description: Requests remaining in the current window.
+      schema:
+        type: integer
+    RateLimitReset:
+      description: Seconds until the current window resets.
+      schema:
+        type: integer
+    RetryAfter:
+      description: Seconds to wait before retrying. Sent with 429 responses.
+      schema:
+        type: integer
+  responses:
+    BadRequest:
+      description: Malformed request, invalid identifier, or a missing required field.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing, malformed, or invalid API key.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            message: Invalid API key
+    NotFound:
+      description: >-
+        The bot or session does not exist for the organization that owns the
+        API key.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyRequests:
+      description: Rate limit exceeded. Wait for the number of seconds in `Retry-After`.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
   schemas:
     ChatRequest:
       type: object
@@ -27,29 +113,83 @@ components:
       properties:
         session_id:
           type: string
-          example: quickstart-001
+          minLength: 1
+          maxLength: 100
+          description: >-
+            Conversation identifier that you control. Mint a new UUID for each
+            conversation and reuse it to continue that conversation. Do not use
+            fixed or predictable values such as user emails, row numbers, or
+            sample strings.
+          example: 9f1c2d7e-3b4a-4c5d-8e6f-0a1b2c3d4e5f
         text:
           type: string
           minLength: 1
           maxLength: 10000
-          example: Hello Knowledge Spaces
+          description: The end user's message.
+          example: What is our refund policy?
         context:
           description: >-
-            Optional per-turn context. Accepts either a plain string or a JSON
-            object of arbitrary key/value pairs.
+            Optional per-turn context. Accepts a plain string or a JSON object
+            of key/value pairs.
           oneOf:
             - type: string
             - type: object
               additionalProperties: true
         stream:
           description: >-
-            When true, the reply is returned as Server-Sent Events instead of a
-            single JSON body. Accepts a boolean or the strings "true"/"false".
+            When true, the reply is returned as Server-Sent Events
+            (`text/event-stream`) instead of a single JSON body. Accepts a
+            boolean or the strings "true" and "false".
           oneOf:
             - type: boolean
             - type: string
               enum: ["true", "false"]
           default: false
+    Resource:
+      description: A source the answer drew on. Returned when the bot has source display enabled.
+      oneOf:
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [document]
+            document:
+              type: object
+              properties:
+                id:
+                  type: string
+                title:
+                  type: string
+                read:
+                  type: boolean
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [url]
+            url:
+              type: object
+              properties:
+                url:
+                  type: string
+                title:
+                  type: string
+                favicon:
+                  type: string
+    Answer:
+      type: object
+      properties:
+        content:
+          type: string
+          description: The assistant reply.
+          example: Refunds are available within 30 days of purchase.
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/Resource"
+        isComplete:
+          type: boolean
+          example: true
     ChatResponse:
       type: object
       properties:
@@ -57,9 +197,39 @@ components:
           type: boolean
           example: true
         text:
-          oneOf:
-            - type: string
-            - type: object
+          $ref: "#/components/schemas/Answer"
+    StreamFrame:
+      type: object
+      description: >-
+        Payload of a `receive-message` event. `content` is the full reply so
+        far, not a delta; replace your displayed text with each frame.
+      properties:
+        content:
+          type: string
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/Resource"
+        isComplete:
+          type: boolean
+    Message:
+      type: object
+      description: A stored conversation message. Additional fields may be present; ignore fields you do not use.
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        text:
+          type: string
+        session_id:
+          type: string
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/Resource"
+        createdAt:
+          type: string
+          format: date-time
     Error:
       type: object
       properties:
@@ -97,15 +267,22 @@ components:
 paths:
   /bots/{bot_id}/chat:
     post:
+      tags: [Chat]
+      operationId: sendChatMessage
       summary: Send a message to a bot
-      security:
-        - ApiKeyAuth: []
+      description: >-
+        Sends one end-user message and returns the bot's answer. The first call
+        with a new `session_id` starts a session; later calls with the same
+        `session_id` continue it. Set `stream` to true to receive the answer as
+        Server-Sent Events.
+
+
+        Streaming responses emit `receive-message` events whose `data` is a
+        StreamFrame, followed by a final `done` event with `{}`. If the request
+        fails after the stream starts, an `error` event with `{ "message": "..." }`
+        is sent and the stream closes.
       parameters:
-        - name: bot_id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/BotId"
       requestBody:
         required: true
         content:
@@ -114,53 +291,74 @@ paths:
               $ref: "#/components/schemas/ChatRequest"
       responses:
         "200":
-          description: Bot response
+          description: Bot answer, or an SSE stream when `stream` is true.
+          headers:
+            RateLimit-Limit:
+              $ref: "#/components/headers/RateLimitLimit"
+            RateLimit-Remaining:
+              $ref: "#/components/headers/RateLimitRemaining"
+            RateLimit-Reset:
+              $ref: "#/components/headers/RateLimitReset"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChatResponse"
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  event: receive-message
+                  data: {"content":"Refunds are","isComplete":false}
+
+                  event: receive-message
+                  data: {"content":"Refunds are available within 30 days.","isComplete":false}
+
+                  event: receive-message
+                  data: {"content":"Refunds are available within 30 days.","resources":[],"isComplete":true}
+
+                  event: done
+                  data: {}
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
-          description: Missing or invalid API key
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+          $ref: "#/components/responses/Unauthorized"
         "402":
-          description: Usage limit reached
+          description: The organization has reached its usage limit for the current billing period.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-        "403":
-          description: API key lacks access to this bot
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Usage limit reached for the current billing period.
+                  text:
+                    $ref: "#/components/schemas/Answer"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "429":
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+          $ref: "#/components/responses/TooManyRequests"
     get:
-      summary: Get chat history for a session
-      security:
-        - ApiKeyAuth: []
+      tags: [Chat]
+      operationId: getChatHistory
+      summary: Get recent chat history for a session
+      description: >-
+        Returns the 10 most recent messages for the session on this bot, oldest
+        first.
       parameters:
-        - name: bot_id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/BotId"
         - name: session_id
           in: query
           required: true
           schema:
             type: string
+            example: 9f1c2d7e-3b4a-4c5d-8e6f-0a1b2c3d4e5f
       responses:
         "200":
-          description: Chat transcript
+          description: Recent messages
           content:
             application/json:
               schema:
@@ -172,32 +370,23 @@ paths:
                   messages:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        role:
-                          type: string
-                          enum: [user, assistant]
-                        text:
-                          type: string
-                        session_id:
-                          type: string
+                      $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
-          description: Missing or invalid API key
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /sessions/{session_id}:
     get:
+      tags: [Sessions]
+      operationId: getSession
       summary: Get session details
-      security:
-        - ApiKeyAuth: []
+      description: Sessions are created by the first chat call that uses a `session_id`.
       parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/SessionId"
       responses:
         "200":
           description: Session details
@@ -208,32 +397,55 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   data:
                     $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     delete:
-      summary: Delete a session
-      security:
-        - ApiKeyAuth: []
+      tags: [Sessions]
+      operationId: deleteSession
+      summary: Delete a session and its messages
+      description: Permanently deletes the session and its stored messages. Use it for erasure requests.
       parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/SessionId"
       responses:
         "200":
           description: Session deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Session and messages deleted
+                  data:
+                    type: object
+                    properties:
+                      messages_deleted:
+                        type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /sessions/{session_id}/context:
     put:
+      tags: [Sessions]
+      operationId: updateSessionContext
       summary: Update session context
-      security:
-        - ApiKeyAuth: []
+      description: Attach your own metadata and end-user identifier to a session.
       parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/SessionId"
       requestBody:
         required: true
         content:
@@ -244,69 +456,74 @@ paths:
                 custom_context:
                   type: object
                   additionalProperties: true
+                  example:
+                    plan: enterprise
                 end_user_id:
                   type: string
+                  maxLength: 255
+                  nullable: true
+                  example: user_42
       responses:
         "200":
           description: Session context updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Session context updated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /sessions/{session_id}/end:
     post:
+      tags: [Sessions]
+      operationId: endSession
       summary: End a session
-      security:
-        - ApiKeyAuth: []
+      description: Marks the session as ended. The transcript is retained.
       parameters:
-        - name: session_id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/SessionId"
       responses:
         "200":
           description: Session ended
-  /chatbots/{chatbot_id}/chat/stream:
-    post:
-      summary: Send a message and stream the reply (Server-Sent Events)
-      description: >-
-        Streaming variant of the chat endpoint. Always responds with
-        `text/event-stream`, emitting incremental `event:`/`data:` frames and
-        terminating with an `event: done` frame. On a mid-stream failure it
-        emits an `event: error` frame with `{ "message": "..." }`.
-      security:
-        - ApiKeyAuth: []
-      parameters:
-        - name: chatbot_id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ChatRequest"
-      responses:
-        "200":
-          description: Server-Sent Events stream of the assistant reply
           content:
-            text/event-stream:
+            application/json:
               schema:
-                type: string
-                example: |
-                  event: token
-                  data: {"text":"Our refund"}
-
-                  event: done
-                  data: {}
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
         "400":
-          description: Missing session_id or text
+          description: The session has already ended.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /rate-limit/info:
     get:
-      summary: Get public rate-limit policy
+      tags: [Rate Limits]
+      operationId: getRateLimitInfo
+      summary: Get the published rate-limit policy
+      description: Returns the published rate-limit policy. No authentication required.
       security: []
       responses:
         "200":

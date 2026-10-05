@@ -10,13 +10,13 @@ This page separates what developers can use now from the capabilities planned fo
 - Bring-your-own model keys for supported providers in console settings
 - Sprinklenet-managed models on managed plans
 - Knowledge Spaces, bots, documents, sessions, usage, and audit controls in the console
-- Organization API Key for bot chat and session APIs
+- Organization API Key, provisioned at registration, for bot chat, streaming, and session APIs
 
 ## Planned Controls
 
 ### Customer-Controlled Storage
 
-Enterprise and OEM deployments should support customer-owned storage targets for source files and derived artifacts, starting with S3-compatible object storage.
+Enterprise and OEM deployments will support customer-owned storage targets for source files and derived artifacts, starting with S3-compatible object storage.
 
 Expected controls:
 
@@ -42,11 +42,13 @@ Expected controls:
 
 ## Plan Fit
 
-- Free BYOK: customer supplies supported provider keys, Sprinklenet hosts the platform.
-- Builder BYOK: production BYOK integrations with higher limits and usage controls.
-- Managed Pro: Sprinklenet-managed models, users, roles, audit logs, and support.
-- Enterprise / OEM: dedicated controls such as SSO, SCIM, customer storage, own cloud, and self-hosted models.
+- **Free BYOK**: you supply supported provider keys; Sprinklenet hosts the platform.
+- **Builder BYOK**: production BYOK integrations with higher limits and usage controls.
+- **Managed Team**: Sprinklenet-managed models, role-based access, audit logs, and priority support.
+- **Enterprise**: advanced governance, managed child organizations and OEM deployments, customer-controlled storage review, and private model endpoint review. SSO and SCIM are on the roadmap.
 
-## Implementation Notes
+Current pricing is on the [developer platform page](https://sprinklenet.com/developers/#pricing).
 
-Storage and self-hosted model configuration should be treated as Enterprise / OEM features until operational guardrails are in place. Both capabilities affect security, billing, support, and incident response, so they should not be exposed as simple free-tier toggles.
+## Availability
+
+Customer-controlled storage and self-hosted model endpoints affect security, billing, support, and incident response, so they are configured through a managed Enterprise engagement rather than self-service settings. [Contact Sprinklenet](https://sprinklenet.com/contact/) to scope them.

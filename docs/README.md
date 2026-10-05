@@ -1,31 +1,26 @@
-# Knowledge Spaces API
+# Knowledge Spaces API Documentation
 
-Knowledge Spaces is the platform layer for governed AI applications. It manages multi-tenant access, knowledge ingestion and retrieval, conversation memory, evaluation, escalation safety, governance, and operational observability.
+Knowledge Spaces is the platform layer for governed AI applications. It manages multi-tenant access, knowledge ingestion and retrieval, conversation memory, evaluation, escalation safety, governance, and operational observability. Developers configure bots and knowledge in the console and deliver conversations through the API.
 
-## Public Docs
+## Contents
 
-- [Overview](overview.md)
-- [Quickstart](quickstart.md)
+- [Overview](overview.md): authentication, sessions, request and response formats, streaming, errors, and rate limits
+- [Quickstart](quickstart.md): from registration to a first answer
 - [Data sovereignty roadmap](sovereignty-roadmap.md)
-- [OpenAPI](../openapi/knowledge-spaces-public.yaml)
-- [Curl example](../examples/curl-chat.sh)
-- [JavaScript example](../examples/javascript-chat.mjs)
-- [Python example](../examples/python_chat.py)
+- [OpenAPI contract](../openapi/knowledge-spaces-public.yaml)
+- Examples: [cURL](../examples/curl-chat.sh), [JavaScript](../examples/javascript-chat.mjs), [JavaScript streaming](../examples/javascript-stream.mjs), [Python](../examples/python_chat.py)
 
-## Access model
+## Access Model
 
-Most endpoints require an authenticated identity plus a relationship to the target organization:
+- **Organization API Key**: one key per organization, used for bot chat, conversation history, and session APIs.
+- **Console sign-in**: bots, knowledge spaces, documents, model keys, members, and governance settings are managed in the console.
 
-- **Public**: no auth, public reads only
-- **Authenticated**: signed-in user
-- **Org Admin**: admin role within the target org
-- **Organization API Key**: single organization-level key for bot chat and session APIs
-
-## Integration patterns
+## Integration Pattern
 
 1. Register at <https://spaces.sprinklenet.com/register>.
-2. Generate the Organization API Key in console settings.
-3. Call `POST /api/bots/{bot_id}/chat` with `session_id` and `text`.
-4. Reuse the same `session_id` to continue a conversation.
+2. Regenerate the Organization API Key in Account Settings and store it server-side.
+3. Mint a UUID for each new conversation.
+4. Call `POST /bots/{bot_id}/chat` with that `session_id` and the user's `text`.
+5. Reuse the same `session_id` to continue the conversation.
 
-Learn more about the platform at [sprinklenet.com/knowledge-spaces](https://sprinklenet.com/knowledge-spaces/).
+Learn more at [sprinklenet.com/developers](https://sprinklenet.com/developers/).
