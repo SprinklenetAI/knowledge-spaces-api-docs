@@ -9,6 +9,7 @@
 - Added complete error, rate-limit header, and session response documentation.
 - Updated all examples to use a new UUID per conversation and added a JavaScript streaming example.
 - Updated plan names to match current pricing.
+- Replaced the data sovereignty roadmap with Deployment and Data Controls, matching the developer platform page: what every plan includes, and the Enterprise architecture options scoped per deployment.
 
 ## 1.0.0 (July 2026)
 

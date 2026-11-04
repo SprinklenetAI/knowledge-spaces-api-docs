@@ -27,7 +27,7 @@ curl -X POST "https://spaces.sprinklenet.com/api/bots/${KS_BOT_ID}/chat" \
 - Overview, request and response formats, errors, and rate limits: [`docs/overview.md`](docs/overview.md)
 - Quickstart: [`docs/quickstart.md`](docs/quickstart.md)
 - OpenAPI 3 contract: [`openapi/knowledge-spaces-public.yaml`](openapi/knowledge-spaces-public.yaml)
-- Data sovereignty roadmap: [`docs/sovereignty-roadmap.md`](docs/sovereignty-roadmap.md)
+- Deployment and data controls: [`docs/deployment-and-data-controls.md`](docs/deployment-and-data-controls.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Examples: [cURL](examples/curl-chat.sh), [JavaScript](examples/javascript-chat.mjs), [JavaScript streaming](examples/javascript-stream.mjs), [Python](examples/python_chat.py)
 
@@ -67,3 +67,7 @@ Base URL: `https://spaces.sprinklenet.com/api`
 Platform access, enterprise plans, and partnerships: <https://sprinklenet.com/contact/>
 
 Developer platform and pricing: <https://sprinklenet.com/developers/>
+
+Security model: [Knowledge Spaces security white paper](https://sprinklenet.com/knowledge-spaces-security/)
+
+Product news: [Sprinklenet AI Newsletter](https://sprinklenet.com/newsletter/)
