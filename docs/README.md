@@ -6,7 +6,7 @@ Knowledge Spaces is the platform layer for governed AI applications. It manages 
 
 - [Overview](overview.md): authentication, sessions, request and response formats, streaming, errors, and rate limits
 - [Quickstart](quickstart.md): from registration to a first answer
-- [Data sovereignty roadmap](sovereignty-roadmap.md)
+- [Deployment and data controls](deployment-and-data-controls.md)
 - [OpenAPI contract](../openapi/knowledge-spaces-public.yaml)
 - Examples: [cURL](../examples/curl-chat.sh), [JavaScript](../examples/javascript-chat.mjs), [JavaScript streaming](../examples/javascript-stream.mjs), [Python](../examples/python_chat.py)
 
